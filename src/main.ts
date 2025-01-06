@@ -1,12 +1,12 @@
-import axios from 'axios'
 import * as core from '@actions/core'
 import * as github from '@actions/github'
+import * as httpClient from '@actions/http-client'
 import {Context} from '@actions/github/lib/context'
 import {ApiClient, CredentialFetchingError} from './api-client'
 import {getJobParameters} from './inputs'
 import {ImageService} from './image-service'
-import {UPDATER_IMAGE_NAME, PROXY_IMAGE_NAME} from './docker-tags'
-import {Updater, UpdaterFetchError} from './updater'
+import {updaterImageName, PROXY_IMAGE_NAME} from './docker-tags'
+import {Updater} from './updater'
 
 export enum DependabotErrorType {
   Unknown = 'actions_workflow_unknown',
@@ -30,24 +30,48 @@ export async function run(context: Context): Promise<void> {
       return // TODO: This should be setNeutral in future
     }
 
-    jobId = params.jobId
-    core.setSecret(params.jobToken)
-    core.setSecret(params.credentialsToken)
+    // Use environment variables if set and not empty, otherwise use parameters.
+    // The param values of job token and credentials token are kept to support backwards compatibility.
+    const jobToken = process.env.GITHUB_DEPENDABOT_JOB_TOKEN || params.jobToken
+    const credentialsToken =
+      process.env.GITHUB_DEPENDABOT_CRED_TOKEN || params.credentialsToken
 
-    const client = axios.create({baseURL: params.dependabotApiUrl})
-    const apiClient = new ApiClient(client, params)
+    // Validate jobToken and credentialsToken
+    if (!jobToken) {
+      const errorMessage = 'Github Dependabot job token is not set'
+      botSay(`finished: ${errorMessage}`)
+      core.setFailed(errorMessage)
+      return
+    }
+    if (!credentialsToken) {
+      const errorMessage = 'Github Dependabot credentials token is not set'
+      botSay(`finished: ${errorMessage}`)
+      core.setFailed(errorMessage)
+      return
+    }
+
+    jobId = params.jobId
+    core.setSecret(jobToken)
+    core.setSecret(credentialsToken)
+
+    const client = new httpClient.HttpClient('github/dependabot-action')
+    const apiClient = new ApiClient(client, params, jobToken, credentialsToken)
 
     core.info('Fetching job details')
 
     // If we fail to succeed in fetching the job details, we cannot be sure the job has entered a 'processing' state,
-    // so we do not try attempt to report back an exception if this fails and instead rely on the the workflow run
+    // so we do not try attempt to report back an exception if this fails and instead rely on the workflow run
     // webhook as it anticipates scenarios where jobs have failed while 'enqueued'.
     const details = await apiClient.getJobDetails()
+
+    // The dynamic workflow can specify which updater image to use. If it doesn't, fall back to the pinned version.
+    const updaterImage =
+      params.updaterImage || updaterImageName(details['package-manager'])
 
     try {
       const credentials = await apiClient.getCredentials()
       const updater = new Updater(
-        UPDATER_IMAGE_NAME,
+        updaterImage,
         PROXY_IMAGE_NAME,
         apiClient,
         details,
@@ -57,7 +81,7 @@ export async function run(context: Context): Promise<void> {
 
       core.startGroup('Pulling updater images')
       try {
-        await ImageService.pull(UPDATER_IMAGE_NAME)
+        await ImageService.pull(updaterImage)
         await ImageService.pull(PROXY_IMAGE_NAME)
       } catch (error: unknown) {
         if (error instanceof Error) {
@@ -77,17 +101,7 @@ export async function run(context: Context): Promise<void> {
 
         await updater.runUpdater()
       } catch (error: unknown) {
-        // If we have encountered a UpdaterFetchError, the Updater will already have
-        // reported the error and marked the job as processed, so we only need to
-        // set an exit status.
-        if (error instanceof UpdaterFetchError) {
-          setFailed(
-            'Dependabot was unable to retrieve the files required to perform the update',
-            null
-          )
-          botSay('finished: unable to fetch files')
-          return
-        } else if (error instanceof Error) {
+        if (error instanceof Error) {
           await failJob(
             apiClient,
             'Dependabot encountered an error performing the update',
@@ -162,7 +176,7 @@ function dependabotJobHelp(): string | null {
   if (jobId) {
     return `For more information see: ${dependabotJobUrl(
       jobId
-    )} (write access required)`
+    )} (write access to the repository is required to view the log)`
   } else {
     return null
   }

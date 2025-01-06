@@ -1,8 +1,10 @@
 import * as core from '@actions/core'
 import Docker from 'dockerode'
 import {
-  UPDATER_IMAGE_NAME,
+  updaterImages,
   PROXY_IMAGE_NAME,
+  digestName,
+  hasDigest,
   repositoryName
 } from './docker-tags'
 
@@ -12,6 +14,10 @@ import {
 //
 // cutoff - a Go duration string to pass to the Docker API's 'until' argument, default '24h'
 export async function run(cutoff = '24h'): Promise<void> {
+  if (process.env.DEPENDABOT_DISABLE_CLEANUP === '1') {
+    return
+  }
+
   try {
     const docker = new Docker()
     const untilFilter = {until: [cutoff]}
@@ -19,7 +25,11 @@ export async function run(cutoff = '24h'): Promise<void> {
     await docker.pruneNetworks({filters: untilFilter})
     core.info(`Pruning containers older than ${cutoff}`)
     await docker.pruneContainers({filters: untilFilter})
-    await cleanupOldImageVersions(docker, UPDATER_IMAGE_NAME)
+    await Promise.all(
+      updaterImages().map(async image => {
+        return cleanupOldImageVersions(docker, image)
+      })
+    )
     await cleanupOldImageVersions(docker, PROXY_IMAGE_NAME)
   } catch (error: unknown) {
     if (error instanceof Error) {
@@ -34,9 +44,7 @@ export async function cleanupOldImageVersions(
 ): Promise<void> {
   const repo = repositoryName(imageName)
   const options = {
-    filters: {
-      reference: [repo]
-    }
+    filters: `{"reference":["${repo}"]}`
   }
 
   core.info(`Cleaning up images for ${repo}`)
@@ -44,19 +52,16 @@ export async function cleanupOldImageVersions(
   docker.listImages(options, async function (err, imageInfoList) {
     if (imageInfoList && imageInfoList.length > 0) {
       for (const imageInfo of imageInfoList) {
-        // The given imageName is expected to be a digest, however to avoid any surprises in future
-        // we fail over to check for a match on tags as well.
+        // The given imageName is expected to be a tag + digest, however to avoid any surprises in future
+        // we fail over to check for a match on just tags as well.
         //
         // This means we won't remove any image which matches an imageName of either of these notations:
-        // - dependabot/image@sha256:$REF (current implementation)
+        // - dependabot/image:$TAG@sha256:$REF (current implementation)
         // - dependabot/image:v1
         //
         // Without checking imageInfo.RepoTags for a match, we would actually remove the latter even if
         // this was the active version.
-        if (
-          imageInfo.RepoDigests?.includes(imageName) ||
-          imageInfo.RepoTags?.includes(imageName)
-        ) {
+        if (imageMatches(imageInfo, imageName)) {
           core.info(`Skipping current image ${imageInfo.Id}`)
           continue
         }
@@ -72,6 +77,15 @@ export async function cleanupOldImageVersions(
       }
     }
   })
+}
+
+function imageMatches(imageInfo: Docker.ImageInfo, imageName: string): boolean {
+  if (hasDigest(imageName)) {
+    return imageInfo.RepoDigests
+      ? imageInfo.RepoDigests.includes(digestName(imageName))
+      : false
+  }
+  return imageInfo.RepoTags ? imageInfo.RepoTags.includes(imageName) : false
 }
 
 run()

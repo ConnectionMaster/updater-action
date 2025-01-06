@@ -21,16 +21,15 @@ export class UpdaterBuilder {
     private readonly input: FileFetcherInput | FileUpdaterInput,
     private readonly outputHostPath: string,
     private readonly proxy: Proxy,
-    private readonly repoHostPath: string,
 
     private readonly updaterImage: string
   ) {}
 
-  async run(containerName: string, updaterCommand: string): Promise<Container> {
-    const cmd = `(echo > /etc/ca-certificates.conf) &&\
-     rm -Rf /usr/share/ca-certificates/ &&\
-      /usr/sbin/update-ca-certificates &&\
-       $DEPENDABOT_HOME/dependabot-updater/bin/run ${updaterCommand}`
+  async run(containerName: string): Promise<Container> {
+    const cmd = `/usr/sbin/update-ca-certificates &&\
+       mkdir -p ${JOB_OUTPUT_PATH} &&\
+       $DEPENDABOT_HOME/dependabot-updater/bin/run fetch_files &&\
+       $DEPENDABOT_HOME/dependabot-updater/bin/run update_files`
 
     const proxyUrl = await this.proxy.url()
     const container = await this.docker.createContainer({
@@ -41,7 +40,7 @@ export class UpdaterBuilder {
       Env: [
         `GITHUB_ACTIONS=${process.env.GITHUB_ACTIONS}`,
         `DEPENDABOT_JOB_ID=${this.jobParams.jobId}`,
-        `DEPENDABOT_JOB_TOKEN=${this.jobParams.jobToken}`,
+        `DEPENDABOT_JOB_TOKEN=`,
         `DEPENDABOT_JOB_PATH=${JOB_INPUT_PATH}/${JOB_INPUT_FILENAME}`,
         `DEPENDABOT_OPEN_TIMEOUT_IN_SECONDS=15`,
         `DEPENDABOT_OUTPUT_PATH=${JOB_OUTPUT_PATH}/${JOB_OUTPUT_FILENAME}`,
@@ -52,17 +51,15 @@ export class UpdaterBuilder {
         `HTTP_PROXY=${proxyUrl}`,
         `https_proxy=${proxyUrl}`,
         `HTTPS_PROXY=${proxyUrl}`,
-        `ENABLE_CONNECTIVITY_CHECK=1`
+        `UPDATER_ONE_CONTAINER=1`,
+        `ENABLE_CONNECTIVITY_CHECK=${
+          process.env.DEPENDABOT_ENABLE_CONNECTIVITY_CHECK || '1'
+        }`
       ],
-      User: 'root',
       Cmd: ['sh', '-c', cmd],
       HostConfig: {
         Memory: UPDATER_MAX_MEMORY,
-        NetworkMode: this.proxy.networkName,
-        Binds: [
-          `${this.outputHostPath}:${JOB_OUTPUT_PATH}:rw`,
-          `${this.repoHostPath}:${REPO_CONTENTS_PATH}:rw`
-        ]
+        NetworkMode: this.proxy.networkName
       }
     })
 
@@ -80,7 +77,7 @@ export class UpdaterBuilder {
       this.input
     )
 
-    core.info(`Created ${updaterCommand} container: ${container.id}`)
+    core.info(`Created container: ${container.id}`)
     return container
   }
 }

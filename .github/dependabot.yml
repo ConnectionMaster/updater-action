@@ -1,21 +1,54 @@
 version: 2
 updates:
-  - package-ecosystem: 'docker'
-    directory: '/docker'
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    open-pull-requests-limit: 20
     schedule:
-      interval: 'daily'
+      interval: "weekly"
+      day: "sunday"
+      time: "22:00"
     registries:
       - ghcr
+    labels:
+      - dependencies
+      - docker
+      - Fanout
+    groups:
+      dependabot-core-images:
+        patterns:
+          - dependabot/*
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
-  - package-ecosystem: 'npm'
-    directory: '/'
+      interval: "weekly"
+      day: "sunday"
+      time: "22:00"
+    labels:
+      - dependencies
+      - github_actions
+      - Fanout      
+  - package-ecosystem: "npm"
+    directory: "/"
     open-pull-requests-limit: 20
     schedule:
-      interval: 'monthly'
-
+      interval: "weekly"
+      day: "sunday"
+      time: "22:00"
+    labels:
+      - dependencies
+      - javascript
+      - Fanout
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+        update-types:
+        - "patch"
+        - "minor"
+      prod-dependencies:
+        dependency-type: "production"
+        update-types:
+        - "patch"
+        - "minor"        
 registries:
   ghcr:
     type: docker-registry

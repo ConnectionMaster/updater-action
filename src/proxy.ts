@@ -1,12 +1,7 @@
 import fs from 'fs'
 import * as core from '@actions/core'
 import Docker, {Container, Network} from 'dockerode'
-import crypto from 'crypto'
-import {
-  BasicAuthCredentials,
-  CertificateAuthority,
-  ProxyConfig
-} from './config-types'
+import {CertificateAuthority, ProxyConfig} from './config-types'
 import {ContainerService} from './container-service'
 import {Credential} from './api-client'
 import {pki} from 'node-forge'
@@ -57,12 +52,18 @@ export type Proxy = {
 export class ProxyBuilder {
   constructor(
     private readonly docker: Docker,
-    private readonly proxyImage: string
+    private readonly proxyImage: string,
+    private readonly cachedMode: boolean
   ) {}
 
-  async run(jobId: number, credentials: Credential[]): Promise<Proxy> {
+  async run(
+    jobId: number,
+    jobToken: string,
+    dependabotApiUrl: string,
+    credentials: Credential[]
+  ): Promise<Proxy> {
     const name = `dependabot-job-${jobId}-proxy`
-    const config = this.buildProxyConfig(credentials, jobId)
+    const config = this.buildProxyConfig(credentials)
     const cert = config.ca.cert
 
     const externalNetworkName = `dependabot-job-${jobId}-external-network`
@@ -73,6 +74,8 @@ export class ProxyBuilder {
 
     const container = await this.createContainer(
       jobId,
+      jobToken,
+      dependabotApiUrl,
       name,
       externalNetwork,
       internalNetwork,
@@ -117,7 +120,7 @@ export class ProxyBuilder {
         const ipAddress =
           containerInfo.NetworkSettings.Networks[`${internalNetworkName}`]
             .IPAddress
-        return `http://${config.proxy_auth.username}:${config.proxy_auth.password}@${ipAddress}:1080`
+        return `http://${ipAddress}:1080`
       } else {
         throw new Error("proxy container isn't running")
       }
@@ -132,8 +135,7 @@ export class ProxyBuilder {
       shutdown: async () => {
         await container.stop()
         await container.remove()
-        await externalNetwork.remove()
-        await internalNetwork.remove()
+        await Promise.all([externalNetwork.remove(), internalNetwork.remove()])
       }
     }
   }
@@ -149,18 +151,10 @@ export class ProxyBuilder {
     }
   }
 
-  private buildProxyConfig(
-    credentials: Credential[],
-    jobId: number
-  ): ProxyConfig {
+  private buildProxyConfig(credentials: Credential[]): ProxyConfig {
     const ca = this.generateCertificateAuthority()
-    const password = crypto.randomBytes(20).toString('hex')
-    const proxy_auth: BasicAuthCredentials = {
-      username: `${jobId}`,
-      password
-    }
 
-    const config: ProxyConfig = {all_credentials: credentials, ca, proxy_auth}
+    const config: ProxyConfig = {all_credentials: credentials, ca}
 
     return config
   }
@@ -189,6 +183,8 @@ export class ProxyBuilder {
 
   private async createContainer(
     jobId: number,
+    jobToken: string,
+    dependabotApiUrl: string,
     containerName: string,
     externalNetwork: Network,
     internalNetwork: Network,
@@ -205,7 +201,10 @@ export class ProxyBuilder {
           process.env.https_proxy || process.env.HTTPS_PROXY || ''
         }`,
         `no_proxy=${process.env.no_proxy || process.env.NO_PROXY || ''}`,
-        `JOB_ID=${jobId}`
+        `JOB_ID=${jobId}`,
+        `JOB_TOKEN=${jobToken}`,
+        `PROXY_CACHE=${this.cachedMode ? 'true' : 'false'}`,
+        `DEPENDABOT_API_URL=${dependabotApiUrl}`
       ],
       Entrypoint: [
         'sh',
