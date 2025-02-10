@@ -4,7 +4,7 @@ import {Readable} from 'stream'
 
 const endOfStream = async (docker: Docker, stream: Readable): Promise<void> => {
   return new Promise((resolve, reject) => {
-    docker.modem.followProgress(stream, (err: Error) =>
+    docker.modem.followProgress(stream, (err: Error | null) =>
       err ? reject(err) : resolve(undefined)
     )
   })
@@ -54,7 +54,7 @@ export const ImageService = {
   ): Promise<void> {
     core.info(`Pulling image ${imageName}...`)
     const stream = await docker.pull(imageName, {authconfig: auth})
-    await endOfStream(docker, stream)
+    await endOfStream(docker, new Readable().wrap(stream))
     core.info(`Pulled image ${imageName}`)
   }
 }

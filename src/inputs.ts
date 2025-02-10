@@ -15,6 +15,7 @@ export class JobParameters {
     readonly credentialsToken: string,
     readonly dependabotApiUrl: string,
     readonly dependabotApiDockerUrl: string,
+    readonly updaterImage: string,
     readonly workingDirectory: string
   ) {}
 }
@@ -23,7 +24,19 @@ export function getJobParameters(ctx: Context): JobParameters | null {
   checkEnvironmentAndContext(ctx)
 
   if (ctx.actor !== DEPENDABOT_ACTOR) {
-    core.warning('This workflow can only be triggered by Dependabot.')
+    core.warning(
+      `This workflow can only be triggered by Dependabot. Actor was '${ctx.actor}'.`
+    )
+    return null
+  }
+
+  if (
+    process.env.GITHUB_TRIGGERING_ACTOR &&
+    process.env.GITHUB_TRIGGERING_ACTOR !== DEPENDABOT_ACTOR
+  ) {
+    core.warning(
+      'Dependabot workflows cannot be re-run. Retrigger this update via Dependabot instead.'
+    )
     return null
   }
 
@@ -82,6 +95,7 @@ function fromWorkflowInputs(ctx: Context): JobParameters {
     evt.inputs.credentialsToken as string,
     evt.inputs.dependabotApiUrl as string,
     dependabotApiDockerUrl as string,
+    evt.inputs.updaterImage as string,
     workingDirectory
   )
 }
