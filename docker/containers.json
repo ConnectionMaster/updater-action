@@ -28,5 +28,8 @@
   "julia": "ghcr.io/dependabot/dependabot-updater-julia:v2.0.20260427215009@sha256:8c9a048551d6ec17cfe24417abe453f6ce0840039524b99c5bb2fb5c6f82c16c",
   "bazel": "ghcr.io/dependabot/dependabot-updater-bazel:v2.0.20260427215009@sha256:90426b63ff5c9acb5b663c6e8f944f2faa2186368d40a82cee239376db20dbcf",
   "opentofu": "ghcr.io/dependabot/dependabot-updater-opentofu:v2.0.20260427215009@sha256:cbe538b870cf1afe4d9a33470e3f644cd185da84c102486d1eb2791fb6b20502",
-  "pre_commit": "ghcr.io/dependabot/dependabot-updater-pre-commit:v2.0.20260427215009@sha256:31085106776ea478c97217ac01ee00cf3f20f941dcb5bc15a7a7465d917c7a7d"
+  "pre_commit": "ghcr.io/dependabot/dependabot-updater-pre-commit:v2.0.20260427215009@sha256:31085106776ea478c97217ac01ee00cf3f20f941dcb5bc15a7a7465d917c7a7d",
+  "conda": "ghcr.io/dependabot/dependabot-updater-conda:v2.0.20260507203823@sha256:9e614fb111e102f7dc905998e59fbf1acdba12728b8220001b1a210b04669a47",
+  "deno": "ghcr.io/dependabot/dependabot-updater-deno:v2.0.20260507203823@sha256:e8c3a57c120aabd6cc188c5f2c1c8d37fa3f9165ea64a5b32eec66d9c6492f8e",
+  "nix": "ghcr.io/dependabot/dependabot-updater-nix:v2.0.20260507203823@sha256:a725c0a20f4b7db3f7bbf3a5e8079a8234ba6122ab4b74e43487c57b3e135a34"
 }
