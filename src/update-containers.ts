@@ -52,7 +52,8 @@ const manifest = {
   pre_commit: getImageName('Dockerfile.pre-commit'),
   conda: getImageName('Dockerfile.conda'),
   deno: getImageName('Dockerfile.deno'),
-  nix: getImageName('Dockerfile.nix')
+  nix: getImageName('Dockerfile.nix'),
+  sbt: getImageName('Dockerfile.sbt')
 }
 
 fs.writeFile(
