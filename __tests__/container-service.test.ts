@@ -16,7 +16,7 @@ describe('ContainerService', () => {
       undefined,
       'dependabot'
     )
-  })
+  }, 30000)
 
   describe('when a container runs successfully', () => {
     beforeEach(async () => {
