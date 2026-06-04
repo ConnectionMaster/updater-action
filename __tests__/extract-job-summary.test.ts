@@ -53,6 +53,21 @@ describe('ContainerService.extractJobSummary', () => {
     expect(written).toEqual('')
   })
 
+  test('does not write to GITHUB_STEP_SUMMARY when summary.md is empty', async () => {
+    const tarStream = pack()
+    tarStream.entry({name: 'summary.md'}, '')
+    tarStream.finalize()
+
+    const mockContainer = {
+      getArchive: jest.fn().mockResolvedValue(tarStream)
+    } as any
+
+    await ContainerService.extractJobSummary(mockContainer)
+
+    const written = fs.readFileSync(stepSummaryPath, 'utf-8')
+    expect(written).toEqual('')
+  })
+
   test('does nothing when GITHUB_STEP_SUMMARY is not set', async () => {
     delete process.env.GITHUB_STEP_SUMMARY
 
