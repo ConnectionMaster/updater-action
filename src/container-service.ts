@@ -1,6 +1,7 @@
 import * as core from '@actions/core'
+import * as fs from 'fs'
 import {Container} from 'dockerode'
-import {pack} from 'tar-stream'
+import {pack, extract} from 'tar-stream'
 import {FileFetcherInput, FileUpdaterInput, ProxyConfig} from './config-types'
 import {outStream, errStream} from './utils'
 
@@ -76,6 +77,12 @@ export const ContainerService = {
             'dependabot'
           )
         }
+
+        // Extract job summary only after all commands have succeeded.
+        // This prevents malicious code executed during fetch_files from
+        // injecting content — our updater overwrites the file at the end
+        // of a successful run.
+        await this.extractJobSummary(container)
       } else {
         // For test containers and other containers, just wait for completion
         const outcome = await container.wait()
@@ -139,6 +146,45 @@ export const ContainerService = {
       throw new Error(
         `Command failed with exit code ${inspection.ExitCode}: ${cmd.join(' ')}`
       )
+    }
+  },
+
+  async extractJobSummary(container: Container): Promise<void> {
+    const summaryPath = '/home/dependabot/dependabot-updater/output/summary.md'
+    const stepSummaryPath = process.env.GITHUB_STEP_SUMMARY
+
+    if (!stepSummaryPath) {
+      return
+    }
+
+    try {
+      const archiveStream = await container.getArchive({path: summaryPath})
+
+      const content = await new Promise<string>((resolve, reject) => {
+        const extractor = extract()
+        let data = ''
+
+        extractor.on('entry', (header, stream, next) => {
+          stream.on('data', chunk => {
+            data += chunk.toString()
+          })
+          stream.on('end', () => next())
+          stream.resume()
+        })
+
+        extractor.on('finish', () => resolve(data))
+        extractor.on('error', err => reject(err))
+
+        archiveStream.pipe(extractor)
+      })
+
+      if (content.length > 0) {
+        fs.appendFileSync(stepSummaryPath, content)
+        core.info('Job summary written to GITHUB_STEP_SUMMARY')
+      }
+    } catch {
+      // File doesn't exist in container (older updater image) — skip gracefully
+      core.debug('No job summary file found in container')
     }
   }
 }
