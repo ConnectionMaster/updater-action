@@ -1,1 +1,1 @@
-FROM ghcr.io/dependabot/dependabot-updater-maven:v2.0.20260610211400@sha256:0a4235648c5881ed81e29a54a968bd14975b036db24eea84a4772f271320cc69
+FROM ghcr.io/dependabot/dependabot-updater-maven:v2.0.20260612234543@sha256:03b04d895d289004b202e4f814fd85e7de92558ad33f7c880934909ea7999978
