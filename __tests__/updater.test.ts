@@ -162,7 +162,8 @@ describe('Updater', () => {
       [
         {
           type: 'npm_registry',
-          registry: 'jfrogghdemo.jfrog.io/artifactory/api/npm/dpndbt-pvt-repo-npm-key/',
+          registry:
+            'jfrogghdemo.jfrog.io/artifactory/api/npm/dpndbt-pvt-repo-npm-key/',
           username: 'npm_user',
           token: 'npm_token',
           scope: '@mycompany'
@@ -174,7 +175,8 @@ describe('Updater', () => {
       expect(jobDetails['credentials-metadata']).toEqual([
         {
           type: 'npm_registry',
-          registry: 'jfrogghdemo.jfrog.io/artifactory/api/npm/dpndbt-pvt-repo-npm-key/',
+          registry:
+            'jfrogghdemo.jfrog.io/artifactory/api/npm/dpndbt-pvt-repo-npm-key/',
           scope: '@mycompany'
         }
       ])
